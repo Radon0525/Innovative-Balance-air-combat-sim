@@ -1,0 +1,1345 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="HOI4の戦闘機対戦闘機を、Wiki掲載式と明示した推定処理で再現する空戦シミュレーター。">
+  <title>HOI4 空戦シミュレーター</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #18201d;
+      --muted: #66706b;
+      --paper: #f3f1e9;
+      --surface: #fffef9;
+      --line: #d9d7cc;
+      --navy: #20384d;
+      --navy-2: #315572;
+      --olive: #66704e;
+      --source-bg: #e2eee7;
+      --source-ink: #2b674a;
+      --estimate-bg: #f6ead2;
+      --estimate-ink: #8b5a17;
+      --a: #2d6fa3;
+      --a-soft: #e8f1f8;
+      --b: #a94c43;
+      --b-soft: #f7e9e6;
+      --shadow: 0 14px 40px rgba(27, 35, 31, .08);
+      --radius: 18px;
+    }
+
+    * { box-sizing: border-box; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      min-width: 320px;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 12% 0%, rgba(102, 112, 78, .14), transparent 26rem),
+        linear-gradient(180deg, #eceae1 0, var(--paper) 22rem);
+      font-family: "Yu Gothic UI", "Hiragino Kaku Gothic ProN", Meiryo, system-ui, sans-serif;
+      line-height: 1.55;
+    }
+
+    button, input, select { font: inherit; }
+
+    button { touch-action: manipulation; }
+
+    .shell {
+      width: min(1180px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 42px 0 72px;
+    }
+
+    .hero {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 28px;
+      margin-bottom: 24px;
+    }
+
+    .eyebrow {
+      margin: 0 0 8px;
+      color: var(--olive);
+      font-size: .76rem;
+      font-weight: 800;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      margin: 0;
+      color: var(--navy);
+      font-family: Georgia, "Yu Mincho", serif;
+      font-size: clamp(2rem, 5vw, 3.7rem);
+      font-weight: 700;
+      letter-spacing: -.04em;
+      line-height: 1.04;
+    }
+
+    .lead {
+      max-width: 720px;
+      margin: 14px 0 0;
+      color: var(--muted);
+      font-size: .98rem;
+    }
+
+    .wing-rule {
+      flex: 0 0 auto;
+      min-width: 166px;
+      padding: 13px 16px;
+      border: 1px solid rgba(32, 56, 77, .16);
+      border-radius: 14px;
+      background: rgba(255, 254, 249, .66);
+      color: var(--navy);
+      text-align: center;
+      backdrop-filter: blur(8px);
+    }
+
+    .wing-rule span { display: block; color: var(--muted); font-size: .72rem; }
+    .wing-rule strong { font-size: 1.12rem; }
+
+    .card {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface);
+      box-shadow: var(--shadow);
+    }
+
+    .scenario-card { padding: 22px; }
+
+    .section-kicker {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 0 0 16px;
+      color: var(--navy);
+      font-size: .8rem;
+      font-weight: 800;
+      letter-spacing: .08em;
+    }
+
+    .section-kicker::before {
+      width: 24px;
+      height: 2px;
+      content: "";
+      background: var(--olive);
+    }
+
+    .scenario-row {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(140px, 1fr)) minmax(210px, 1.15fr);
+      gap: 14px;
+      align-items: end;
+    }
+
+    .carry-option {
+      min-height: 44px;
+      padding: 0 12px;
+      border: 1px solid #c9cbc3;
+      border-radius: 10px;
+      background: #f8f7f1;
+    }
+
+    .field { min-width: 0; }
+
+    .field label,
+    .field-label {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 6px;
+      color: #414a46;
+      font-size: .78rem;
+      font-weight: 700;
+    }
+
+    .field-label small,
+    .field label small { color: var(--muted); font-weight: 500; }
+
+    input[type="number"], select {
+      width: 100%;
+      height: 44px;
+      padding: 0 12px;
+      border: 1px solid #c9cbc3;
+      border-radius: 10px;
+      outline: none;
+      background: #fff;
+      color: var(--ink);
+      transition: border-color .18s, box-shadow .18s;
+    }
+
+    input[type="number"]:focus, select:focus {
+      border-color: var(--navy-2);
+      box-shadow: 0 0 0 3px rgba(49, 85, 114, .12);
+    }
+
+    input[aria-invalid="true"] {
+      border-color: var(--b);
+      box-shadow: 0 0 0 3px rgba(169, 76, 67, .12);
+    }
+
+    .run-button {
+      min-height: 48px;
+      padding: 0 24px;
+      border: 0;
+      border-radius: 12px;
+      background: var(--navy);
+      color: white;
+      font-weight: 800;
+      letter-spacing: .03em;
+      cursor: pointer;
+      box-shadow: 0 9px 22px rgba(32, 56, 77, .24);
+      transition: transform .15s, background .15s;
+    }
+
+    .run-button:hover { background: var(--navy-2); transform: translateY(-1px); }
+    .run-button:active { transform: translateY(0); }
+    .run-button:disabled { cursor: wait; opacity: .68; transform: none; }
+
+    .teams {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+      margin-top: 18px;
+    }
+
+    .team-card {
+      position: relative;
+      overflow: hidden;
+      padding: 22px;
+    }
+
+    .team-card::before {
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: 5px;
+      content: "";
+      background: var(--team);
+    }
+
+    .team-a { --team: var(--a); --team-soft: var(--a-soft); }
+    .team-b { --team: var(--b); --team-soft: var(--b-soft); }
+
+    .team-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .team-title { margin: 0; color: var(--team); font-size: 1.26rem; }
+
+    .plane-total {
+      padding: 5px 10px;
+      border-radius: 999px;
+      background: var(--team-soft);
+      color: var(--team);
+      font-size: .78rem;
+      font-weight: 800;
+    }
+
+    .fields-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+
+    .unit-input { position: relative; }
+    .unit-input input { padding-right: 54px; }
+    .unit {
+      position: absolute;
+      right: 12px;
+      bottom: 12px;
+      color: var(--muted);
+      font-size: .72rem;
+      pointer-events: none;
+    }
+
+    .details-card { margin-top: 18px; overflow: hidden; }
+
+    .details-card > summary {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 18px 22px;
+      color: var(--navy);
+      font-weight: 800;
+      cursor: pointer;
+      list-style: none;
+    }
+
+    .details-card > summary::-webkit-details-marker { display: none; }
+    .details-card > summary::after { content: "＋"; font-size: 1.15rem; }
+    .details-card[open] > summary::after { content: "−"; }
+
+    .details-body { padding: 0 22px 22px; border-top: 1px solid var(--line); }
+
+    .details-note {
+      margin: 16px 0;
+      color: var(--muted);
+      font-size: .82rem;
+    }
+
+    .defines-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 13px;
+    }
+
+    .define label { align-items: flex-start; }
+    .define-name { overflow-wrap: anywhere; font-family: Consolas, monospace; font-size: .69rem; }
+
+    .secondary-button {
+      min-height: 40px;
+      padding: 0 16px;
+      border: 1px solid #bfc4bf;
+      border-radius: 10px;
+      background: #fff;
+      color: var(--navy);
+      font-weight: 750;
+      cursor: pointer;
+    }
+
+    .secondary-button:hover { background: #f2f4f1; }
+
+    .details-actions {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-top: 16px;
+    }
+
+    .detection-model {
+      margin-top: 18px;
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: 13px;
+      background: #f8f7f1;
+    }
+
+    .detection-model-head {
+      display: grid;
+      grid-template-columns: minmax(220px, 1fr) auto;
+      gap: 16px;
+      align-items: end;
+    }
+
+    .check-field {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 44px;
+      color: #414a46;
+      font-size: .8rem;
+      font-weight: 700;
+    }
+
+    .check-field input { width: 17px; height: 17px; accent-color: var(--navy); }
+
+    .detection-environment {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 14px;
+    }
+
+    .detection-environment[hidden] { display: none; }
+
+    input:disabled {
+      background: #ecece7;
+      color: #858a87;
+      cursor: not-allowed;
+    }
+
+    .combat-note { color: var(--muted); font-size: .74rem; }
+
+    .method-card { margin-top: 18px; padding: 20px 22px; }
+
+    .method-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      margin-bottom: 14px;
+    }
+
+    .method-head h2 { margin: 0; color: var(--navy); font-size: 1rem; }
+
+    .badges { display: flex; flex-wrap: wrap; gap: 7px; }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      width: fit-content;
+      padding: 3px 8px;
+      border-radius: 999px;
+      font-size: .68rem;
+      font-weight: 800;
+      letter-spacing: .02em;
+      white-space: nowrap;
+    }
+
+    .source { background: var(--source-bg); color: var(--source-ink); }
+    .estimate { background: var(--estimate-bg); color: var(--estimate-ink); }
+
+    .method-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+    .method-item {
+      padding: 13px 14px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: #fbfaf5;
+    }
+
+    .method-item p { margin: 7px 0 0; color: #4f5854; font-size: .78rem; }
+
+    .formula {
+      margin-top: 12px;
+      padding: 13px 14px;
+      border-radius: 12px;
+      background: var(--navy);
+      color: #f6f4e9;
+      font-family: Consolas, "Yu Gothic UI", monospace;
+      font-size: .75rem;
+      line-height: 1.7;
+      overflow-x: auto;
+    }
+
+    .status-wrap { margin: 18px 0 0; }
+
+    .status-line {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      min-height: 22px;
+      color: var(--muted);
+      font-size: .8rem;
+    }
+
+    .progress {
+      height: 5px;
+      margin-top: 7px;
+      overflow: hidden;
+      border-radius: 99px;
+      background: #dddcd3;
+      opacity: 0;
+      transition: opacity .2s;
+    }
+
+    .progress.active { opacity: 1; }
+    .progress > span { display: block; width: 0; height: 100%; background: var(--olive); transition: width .12s; }
+
+    .results { margin-top: 34px; }
+    .results[hidden] { display: none; }
+
+    .results-title {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 14px;
+    }
+
+    .results-title h2 { margin: 0; color: var(--navy); font-size: clamp(1.4rem, 3vw, 2rem); }
+    .results-title p { margin: 0; color: var(--muted); font-size: .76rem; }
+
+    .result-section { padding: 22px; margin-top: 16px; }
+
+    .result-section h3 { margin: 0; color: var(--navy); font-size: 1rem; }
+
+    .result-intro {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    .result-intro p { margin: 4px 0 0; color: var(--muted); font-size: .78rem; }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .metric {
+      min-height: 112px;
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: 13px;
+      background: #fbfaf6;
+    }
+
+    .metric-label { color: var(--muted); font-size: .71rem; font-weight: 700; }
+    .metric-value { margin-top: 6px; color: var(--navy); font-size: clamp(1.2rem, 2.4vw, 1.75rem); font-weight: 850; line-height: 1.1; }
+    .metric-sub { margin-top: 8px; color: var(--muted); font-size: .68rem; }
+    .ink-a { color: var(--a); }
+    .ink-b { color: var(--b); }
+
+    .split-value { display: flex; gap: 8px; align-items: baseline; }
+    .split-value span { font-size: .68em; color: #9c9f9b; font-weight: 500; }
+
+    .stat-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1.1fr) minmax(320px, .9fr);
+      gap: 18px;
+      margin-top: 18px;
+    }
+
+    .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: #fff;
+      font-variant-numeric: tabular-nums;
+    }
+
+    th, td { padding: 10px 12px; border-bottom: 1px solid #e5e4dd; text-align: right; font-size: .75rem; white-space: nowrap; }
+    th { background: #f2f1ea; color: #505955; font-size: .68rem; letter-spacing: .03em; }
+    th:first-child, td:first-child { text-align: left; }
+    tr:last-child td { border-bottom: 0; }
+
+    .histograms { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+    .hist-panel {
+      padding: 13px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: #fbfaf6;
+    }
+
+    .hist-panel h4 { margin: 0 0 10px; color: var(--navy); font-size: .75rem; }
+
+    .hist {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      align-items: end;
+      gap: 3px;
+      height: 114px;
+      padding-top: 8px;
+      border-bottom: 1px solid #c9cbc3;
+    }
+
+    .hist-bar {
+      position: relative;
+      min-height: 2px;
+      border-radius: 3px 3px 0 0;
+      background: var(--hist-color);
+      opacity: .82;
+    }
+
+    .hist-axis { display: flex; justify-content: space-between; margin-top: 5px; color: var(--muted); font-size: .64rem; }
+
+    .log-wrap { max-height: 470px; overflow: auto; margin-top: 14px; border: 1px solid var(--line); border-radius: 12px; }
+    .log-wrap thead { position: sticky; top: 0; z-index: 1; }
+    .log-wrap tbody tr:nth-child(even) { background: #fbfaf6; }
+
+    .empty-note { color: var(--muted); font-size: .78rem; }
+
+    footer {
+      margin-top: 28px;
+      color: var(--muted);
+      font-size: .71rem;
+      text-align: center;
+    }
+
+    @media (max-width: 920px) {
+      .scenario-row { grid-template-columns: 1fr 1fr; }
+      .run-button { grid-column: span 2; }
+      .defines-grid { grid-template-columns: 1fr 1fr; }
+      .detection-environment { grid-template-columns: 1fr 1fr; }
+      .summary-grid { grid-template-columns: repeat(2, 1fr); }
+      .metric:last-child { grid-column: span 2; }
+      .stat-layout { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 680px) {
+      .shell { width: min(100% - 20px, 1180px); padding-top: 24px; }
+      .hero { align-items: flex-start; flex-direction: column; gap: 16px; }
+      .wing-rule { min-width: 0; width: 100%; text-align: left; }
+      .scenario-row, .teams, .method-grid { grid-template-columns: 1fr; }
+      .run-button { grid-column: auto; }
+      .fields-grid { gap: 10px; }
+      .defines-grid { grid-template-columns: 1fr; }
+      .detection-model-head, .detection-environment { grid-template-columns: 1fr; }
+      .method-head, .result-intro, .results-title { align-items: flex-start; flex-direction: column; }
+      .summary-grid { grid-template-columns: 1fr 1fr; }
+      .histograms { grid-template-columns: 1fr; }
+      .details-actions { align-items: flex-start; flex-direction: column; }
+    }
+
+    @media (max-width: 420px) {
+      .fields-grid, .summary-grid { grid-template-columns: 1fr; }
+      .metric:last-child { grid-column: auto; }
+      .scenario-card, .team-card, .result-section { padding: 17px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header class="hero">
+      <div>
+        <p class="eyebrow">HOI4 · Air Combat Lab</p>
+        <h1>空戦シミュレーター</h1>
+        <p class="lead">戦闘機どうしの連続空戦を再現します。撃墜損失は次戦へ持ち越し、同じ条件を繰り返して結果のばらつきも確認できます。</p>
+      </div>
+      <div class="wing-rule"><span>航空隊の固定規模</span><strong>1航空隊 = 100機</strong></div>
+    </header>
+
+    <form id="sim-form" novalidate>
+      <section class="card scenario-card" aria-labelledby="scenario-title">
+        <p class="section-kicker" id="scenario-title">戦闘設定</p>
+        <div class="scenario-row">
+          <div class="field">
+            <label for="battle-count">戦闘回数 <small>1試行内の回数</small></label>
+            <input id="battle-count" type="number" min="1" max="1000" step="1" value="30" required>
+          </div>
+          <div class="field">
+            <label for="trial-count">試行回数 <small>初期状態から再実験</small></label>
+            <input id="trial-count" type="number" min="1" max="10000" step="1" value="1000" required>
+          </div>
+          <div class="field">
+            <label for="combat-type">戦闘種別 <small>適用係数</small></label>
+            <select id="combat-type">
+              <option value="normal" selected>通常空戦</option>
+              <option value="carrier">空母戦</option>
+            </select>
+          </div>
+          <div class="field">
+            <span class="field-label">連続戦闘 <small>次戦の開始機数</small></span>
+            <label class="check-field carry-option"><input id="carry-losses" type="checkbox" checked> 損失を次戦へ持ち越す</label>
+          </div>
+          <button class="run-button" id="run-button" type="submit">シミュレーション開始</button>
+        </div>
+      </section>
+
+      <div class="teams">
+        <section class="card team-card team-a" aria-labelledby="team-a-title">
+          <div class="team-head">
+            <h2 class="team-title" id="team-a-title">陣営 A</h2>
+            <div class="plane-total" id="a-total">1,000機</div>
+          </div>
+          <div class="fields-grid">
+            <div class="field unit-input">
+              <label for="a-wings">航空隊数</label>
+              <input id="a-wings" type="number" min="1" max="100" step="1" value="10" required>
+              <span class="unit">個</span>
+            </div>
+            <div class="field unit-input">
+              <label for="a-attack">航空攻撃</label>
+              <input id="a-attack" type="number" min="0" max="1000" step="0.1" value="40" required>
+            </div>
+            <div class="field unit-input">
+              <label for="a-defense">航空防御</label>
+              <input id="a-defense" type="number" min="0" max="1000" step="0.1" value="25" required>
+            </div>
+            <div class="field unit-input">
+              <label for="a-agility">機動性</label>
+              <input id="a-agility" type="number" min="0" max="1000" step="0.1" value="70" required>
+            </div>
+            <div class="field unit-input">
+              <label for="a-speed">最高速度</label>
+              <input id="a-speed" type="number" min="0" max="5000" step="1" value="600" required>
+              <span class="unit">km/h</span>
+            </div>
+            <div class="field unit-input">
+              <label for="a-detection">探知率 <small>AがBを探知</small></label>
+              <input id="a-detection" type="number" min="0" max="100" step="0.1" value="100" required>
+              <span class="unit">%</span>
+            </div>
+            <div class="field unit-input">
+              <label for="a-efficiency">作戦効率</label>
+              <input id="a-efficiency" type="number" min="0" max="100" step="0.1" value="100" required>
+              <span class="unit">%</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="card team-card team-b" aria-labelledby="team-b-title">
+          <div class="team-head">
+            <h2 class="team-title" id="team-b-title">陣営 B</h2>
+            <div class="plane-total" id="b-total">1,000機</div>
+          </div>
+          <div class="fields-grid">
+            <div class="field unit-input">
+              <label for="b-wings">航空隊数</label>
+              <input id="b-wings" type="number" min="1" max="100" step="1" value="10" required>
+              <span class="unit">個</span>
+            </div>
+            <div class="field unit-input">
+              <label for="b-attack">航空攻撃</label>
+              <input id="b-attack" type="number" min="0" max="1000" step="0.1" value="35" required>
+            </div>
+            <div class="field unit-input">
+              <label for="b-defense">航空防御</label>
+              <input id="b-defense" type="number" min="0" max="1000" step="0.1" value="28" required>
+            </div>
+            <div class="field unit-input">
+              <label for="b-agility">機動性</label>
+              <input id="b-agility" type="number" min="0" max="1000" step="0.1" value="60" required>
+            </div>
+            <div class="field unit-input">
+              <label for="b-speed">最高速度</label>
+              <input id="b-speed" type="number" min="0" max="5000" step="1" value="550" required>
+              <span class="unit">km/h</span>
+            </div>
+            <div class="field unit-input">
+              <label for="b-detection">探知率 <small>BがAを探知</small></label>
+              <input id="b-detection" type="number" min="0" max="100" step="0.1" value="100" required>
+              <span class="unit">%</span>
+            </div>
+            <div class="field unit-input">
+              <label for="b-efficiency">作戦効率</label>
+              <input id="b-efficiency" type="number" min="0" max="100" step="0.1" value="100" required>
+              <span class="unit">%</span>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <details class="card details-card">
+        <summary>詳細設定 — 空戦係数</summary>
+        <div class="details-body">
+          <p class="details-note">読み込んだ <code>00_defines.lua</code> の値を初期値にしています。別のMOD値も入力して比較できます。名称の <code>MULTILPIER</code> と <code>AIRCRAFTS</code> はゲーム側の綴りに合わせています。</p>
+          <div class="defines-grid" id="defines-grid"></div>
+          <section class="detection-model" aria-labelledby="detection-model-title">
+            <div class="detection-model-head">
+              <div class="field">
+                <label for="detection-mode" id="detection-model-title">探知率の計算方式 <small>通常は手動がおすすめ</small></label>
+                <select id="detection-mode">
+                  <option value="manual" selected>手動入力（陣営A/Bの探知率）</option>
+                  <option value="defines">Definesから推定計算</option>
+                </select>
+              </div>
+              <label class="check-field"><input id="is-night" type="checkbox" disabled> 夜間として計算</label>
+            </div>
+            <div class="detection-environment" id="detection-environment" hidden>
+              <div class="field unit-input">
+                <label for="a-occupation">A 支配地域割合</label>
+                <input id="a-occupation" type="number" min="0" max="100" step="0.1" value="100" required>
+                <span class="unit">%</span>
+              </div>
+              <div class="field unit-input">
+                <label for="a-radar">A レーダー寄与</label>
+                <input id="a-radar" type="number" min="0" max="100" step="0.1" value="100" required>
+                <span class="unit">%</span>
+              </div>
+              <div class="field unit-input">
+                <label for="b-occupation">B 支配地域割合</label>
+                <input id="b-occupation" type="number" min="0" max="100" step="0.1" value="100" required>
+                <span class="unit">%</span>
+              </div>
+              <div class="field unit-input">
+                <label for="b-radar">B レーダー寄与</label>
+                <input id="b-radar" type="number" min="0" max="100" step="0.1" value="100" required>
+                <span class="unit">%</span>
+              </div>
+            </div>
+            <p class="details-note" style="margin-bottom:0"><span class="badge estimate">推定</span> Defines推定では、支配地域・レーダー・その戦闘時点の自軍残存機数・夜間補正を加算して0〜100%に制限します。ゲームの探知効率・天候・内部乱数は含みません。</p>
+          </section>
+          <div class="details-actions">
+            <button class="secondary-button" id="reset-defines" type="button">00_defines.lua の値に戻す</button>
+            <span class="combat-note">通常空戦では <code>COMBAT_DAMAGE_SCALE</code>、空母戦では <code>COMBAT_DAMAGE_SCALE_CARRIER</code> を使用します。</span>
+          </div>
+        </div>
+      </details>
+    </form>
+
+    <section class="card method-card" aria-labelledby="method-title">
+      <div class="method-head">
+        <h2 id="method-title">このシミュレーターの計算範囲</h2>
+        <div class="badges"><span class="badge source">資料に明記</span><span class="badge estimate">再現のための推定</span></div>
+      </div>
+      <div class="method-grid">
+        <div class="method-item">
+          <span class="badge source">資料に明記</span>
+          <p>参加上限は「自軍の出撃可能機」と「探知した敵機×COMBAT_MULTIPLANE_CAP」の小さい方。ダメージ式、各係数、最終値の確率的丸めも保存版Wikiに従います。</p>
+        </div>
+        <div class="method-item">
+          <span class="badge estimate">再現のための推定</span>
+          <p>作戦効率を出撃可能機数へ直接乗算し、敵の各100機航空隊へ残存機数に比例して攻撃機を配分。Defines探知率と航空隊ごとの独立丸めも推定処理です。</p>
+        </div>
+      </div>
+      <div class="formula" aria-label="使用する撃墜期待値の式">撃墜期待値 = (基礎D − 機動性軽減 + 相対速度加算 + 絶対速度加算) × 0.01 × 戦闘係数 ÷ 敵航空防御<br>基礎D = 参加機数 × 航空攻撃 × COMBAT_DAMAGE_STATS_MULTILPIER<br>参加機数 = min(出撃可能機数, 探知敵機数 × COMBAT_MULTIPLANE_CAP)</div>
+    </section>
+
+    <div class="status-wrap" aria-live="polite">
+      <div class="status-line"><span id="status-text">設定を入力してシミュレーションを開始してください。</span><span id="status-percent"></span></div>
+      <div class="progress" id="progress"><span id="progress-bar"></span></div>
+    </div>
+
+    <section class="results" id="results" hidden aria-labelledby="results-heading">
+      <div class="results-title">
+        <h2 id="results-heading">シミュレーション結果</h2>
+        <p id="results-caption"></p>
+      </div>
+
+      <section class="card result-section" aria-labelledby="sample-title">
+        <div class="result-intro">
+          <div><h3 id="sample-title">代表試行（1回目）</h3><p>下の戦闘ログと対応する、実際に抽選された1セットです。</p></div>
+          <span class="badge estimate">確率抽選を含む</span>
+        </div>
+        <div class="summary-grid" id="sample-summary"></div>
+      </section>
+
+      <section class="card result-section" aria-labelledby="stats-title">
+        <div class="result-intro">
+          <div><h3 id="stats-title">複数試行の統計</h3><p id="stats-subtitle"></p></div>
+          <span class="badge source">同条件を毎回リセット</span>
+        </div>
+        <div class="summary-grid" id="stats-summary"></div>
+        <div class="stat-layout">
+          <div class="table-wrap">
+            <table aria-label="複数試行の分位統計">
+              <thead><tr><th>指標</th><th>最小</th><th>10%</th><th>中央値</th><th>90%</th><th>最大</th></tr></thead>
+              <tbody id="stats-table"></tbody>
+            </table>
+          </div>
+          <div class="histograms">
+            <div class="hist-panel"><h4 class="ink-a">Aの総撃墜分布</h4><div class="hist" id="hist-a" style="--hist-color: var(--a)"></div><div class="hist-axis"><span id="hist-a-min"></span><span id="hist-a-max"></span></div></div>
+            <div class="hist-panel"><h4 class="ink-b">Bの総撃墜分布</h4><div class="hist" id="hist-b" style="--hist-color: var(--b)"></div><div class="hist-axis"><span id="hist-b-min"></span><span id="hist-b-max"></span></div></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card result-section" aria-labelledby="log-title">
+        <div class="result-intro">
+          <div><h3 id="log-title">戦闘ごとのログ</h3><p id="log-note">代表試行の損失推移です。</p></div>
+        </div>
+        <div class="log-wrap">
+          <table aria-label="戦闘ごとの結果">
+            <thead><tr><th>戦闘</th><th>開始 A / B</th><th>参加 A / B</th><th>期待撃墜 A / B</th><th>実撃墜 A / B</th><th>残存 A / B</th></tr></thead>
+            <tbody id="battle-log"></tbody>
+          </table>
+        </div>
+      </section>
+    </section>
+
+    <footer>計算式: 「Air combat - Hearts of Iron 4 Wiki」保存HTML（rev. 103576）／係数初期値: 提供された 00_defines.lua／ゲーム内部の未公開処理まで完全再現するものではありません。</footer>
+  </main>
+
+  <script>
+    'use strict';
+
+    const WING_SIZE = 100;
+    const DEFAULT_DEFINES = Object.freeze({
+      COMBAT_DAMAGE_STATS_MULTILPIER: 0.2,
+      COMBAT_BETTER_AGILITY_DAMAGE_REDUCTION: 0.9,
+      BIGGEST_AGILITY_FACTOR_DIFF: 2,
+      COMBAT_BETTER_SPEED_DAMAGE_INCREASE: 1.8,
+      BIGGEST_SPEED_FACTOR_DIFF: 3.5,
+      TOP_SPEED_DAMAGE_BONUS_FACTOR: 0,
+      AIR_WING_MAX_STATS_SPEED: 1000,
+      COMBAT_MULTIPLANE_CAP: 1,
+      COMBAT_DAMAGE_SCALE: 1,
+      COMBAT_DAMAGE_SCALE_CARRIER: 3,
+      DETECT_CHANCE_FROM_OCCUPATION: 0.1,
+      DETECT_CHANCE_FROM_RADARS: 0.5,
+      DETECT_CHANCE_FROM_AIRCRAFTS: 0.8,
+      DETECT_CHANCE_FROM_AIRCRAFTS_EFFECTIVE_COUNT: 1500,
+      DETECT_CHANCE_FROM_NIGHT: -0.2
+    });
+
+    const DEFINE_HELP = {
+      COMBAT_DAMAGE_STATS_MULTILPIER: '基礎ダメージ倍率',
+      COMBAT_BETTER_AGILITY_DAMAGE_REDUCTION: '機動性優位による軽減率',
+      BIGGEST_AGILITY_FACTOR_DIFF: '機動性比の上限',
+      COMBAT_BETTER_SPEED_DAMAGE_INCREASE: '相対速度優位による加算率',
+      BIGGEST_SPEED_FACTOR_DIFF: '速度比の上限',
+      TOP_SPEED_DAMAGE_BONUS_FACTOR: '絶対速度100km/hごとの加算率',
+      AIR_WING_MAX_STATS_SPEED: '絶対速度加算に使う速度上限',
+      COMBAT_MULTIPLANE_CAP: '敵1機へ攻撃できる機数上限',
+      COMBAT_DAMAGE_SCALE: '通常空戦の最終倍率',
+      COMBAT_DAMAGE_SCALE_CARRIER: '空母戦の最終倍率',
+      DETECT_CHANCE_FROM_OCCUPATION: '支配地域による探知寄与',
+      DETECT_CHANCE_FROM_RADARS: 'レーダーによる探知寄与',
+      DETECT_CHANCE_FROM_AIRCRAFTS: '自軍機による探知寄与',
+      DETECT_CHANCE_FROM_AIRCRAFTS_EFFECTIVE_COUNT: '自軍機探知寄与が最大になる機数',
+      DETECT_CHANCE_FROM_NIGHT: '夜間の探知補正'
+    };
+
+    const numberFormat = new Intl.NumberFormat('ja-JP', { maximumFractionDigits: 2 });
+    const integerFormat = new Intl.NumberFormat('ja-JP', { maximumFractionDigits: 0 });
+
+    const $ = (selector) => document.querySelector(selector);
+    const byId = (id) => document.getElementById(id);
+    const sum = (values) => values.reduce((total, value) => total + value, 0);
+    const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+    const average = (values) => values.length ? sum(values) / values.length : 0;
+
+    function buildDefineInputs() {
+      const grid = byId('defines-grid');
+      grid.innerHTML = Object.entries(DEFAULT_DEFINES).map(([name, value]) => `
+        <div class="field define">
+          <label for="define-${name}"><span class="define-name">${name}</span><small>${DEFINE_HELP[name]}</small></label>
+          <input id="define-${name}" data-define="${name}" type="number" min="-100000" max="100000" step="any" value="${value}" required>
+        </div>
+      `).join('');
+    }
+
+    function resetDefines() {
+      for (const [name, value] of Object.entries(DEFAULT_DEFINES)) {
+        byId(`define-${name}`).value = value;
+        byId(`define-${name}`).removeAttribute('aria-invalid');
+      }
+      setStatus('空戦係数を00_defines.luaの初期値に戻しました。');
+    }
+
+    function updatePlaneTotals() {
+      for (const side of ['a', 'b']) {
+        const wings = Number(byId(`${side}-wings`).value);
+        byId(`${side}-total`).textContent = Number.isFinite(wings) && wings >= 0
+          ? `${integerFormat.format(wings * WING_SIZE)}機`
+          : '—機';
+      }
+    }
+
+    function readNumber(id, label) {
+      const input = byId(id);
+      const value = Number(input.value);
+      const min = input.min === '' ? -Infinity : Number(input.min);
+      const max = input.max === '' ? Infinity : Number(input.max);
+      const valid = Number.isFinite(value) && value >= min && value <= max;
+      input.setAttribute('aria-invalid', String(!valid));
+      if (!valid) throw new Error(`${label}は${min}〜${max}の範囲で入力してください。`);
+      return value;
+    }
+
+    function readConfig() {
+      const defineValues = {};
+      for (const input of document.querySelectorAll('[data-define]')) {
+        defineValues[input.dataset.define] = readNumber(input.id, input.dataset.define);
+      }
+
+      const side = (prefix, label) => ({
+        label,
+        wingCount: Math.round(readNumber(`${prefix}-wings`, `${label}の航空隊数`)),
+        attack: readNumber(`${prefix}-attack`, `${label}の航空攻撃`),
+        defense: readNumber(`${prefix}-defense`, `${label}の航空防御`),
+        agility: readNumber(`${prefix}-agility`, `${label}の機動性`),
+        speed: readNumber(`${prefix}-speed`, `${label}の最高速度`),
+        detection: readNumber(`${prefix}-detection`, `${label}の探知率`) / 100,
+        efficiency: readNumber(`${prefix}-efficiency`, `${label}の作戦効率`) / 100,
+        occupation: readNumber(`${prefix}-occupation`, `${label}の支配地域割合`) / 100,
+        radar: readNumber(`${prefix}-radar`, `${label}のレーダー寄与`) / 100
+      });
+
+      return {
+        battles: Math.round(readNumber('battle-count', '戦闘回数')),
+        trials: Math.round(readNumber('trial-count', '試行回数')),
+        combatType: byId('combat-type').value,
+        carryLosses: byId('carry-losses').checked,
+        detectionMode: byId('detection-mode').value,
+        isNight: byId('is-night').checked,
+        a: side('a', '陣営A'),
+        b: side('b', '陣営B'),
+        defines: defineValues
+      };
+    }
+
+    function createWings(count) {
+      return Array.from({ length: count }, () => WING_SIZE);
+    }
+
+    function stochasticRound(value, rng = Math.random) {
+      if (!(value > 0)) return 0;
+      const whole = Math.floor(value);
+      return whole + (rng() < value - whole ? 1 : 0);
+    }
+
+    function damageComponents(attackerCount, attacker, defender, defines, combatType) {
+      const base = attackerCount * attacker.attack * defines.COMBAT_DAMAGE_STATS_MULTILPIER;
+      const agilityRatio = attacker.agility > 0
+        ? Math.min(defender.agility / attacker.agility, defines.BIGGEST_AGILITY_FACTOR_DIFF)
+        : (defender.agility > 0 ? defines.BIGGEST_AGILITY_FACTOR_DIFF : 1);
+      const agilityMitigation = defender.agility > attacker.agility
+        ? base * defines.COMBAT_BETTER_AGILITY_DAMAGE_REDUCTION * Math.max(0, agilityRatio - 1)
+        : 0;
+
+      const speedRatio = defender.speed > 0
+        ? Math.min(attacker.speed / defender.speed, defines.BIGGEST_SPEED_FACTOR_DIFF)
+        : (attacker.speed > 0 ? defines.BIGGEST_SPEED_FACTOR_DIFF : 1);
+      const hasSpeedAdvantage = attacker.speed > defender.speed;
+      const relativeSpeedBonus = hasSpeedAdvantage
+        ? base * defines.COMBAT_BETTER_SPEED_DAMAGE_INCREASE * Math.max(0, speedRatio - 1)
+        : 0;
+      const absoluteSpeedUnits = Math.min(attacker.speed, defines.AIR_WING_MAX_STATS_SPEED) / 100;
+      const absoluteSpeedBonus = hasSpeedAdvantage
+        ? base * defines.TOP_SPEED_DAMAGE_BONUS_FACTOR * absoluteSpeedUnits
+        : 0;
+
+      const scale = combatType === 'carrier'
+        ? defines.COMBAT_DAMAGE_SCALE_CARRIER
+        : defines.COMBAT_DAMAGE_SCALE;
+      const damagePool = Math.max(0, base - agilityMitigation + relativeSpeedBonus + absoluteSpeedBonus)
+        * 0.01 * scale;
+      const expected = defender.defense > 0
+        ? damagePool / defender.defense
+        : (damagePool > 0 ? Infinity : 0);
+
+      return { base, agilityMitigation, relativeSpeedBonus, absoluteSpeedBonus, expected };
+    }
+
+    function resolveAttack(attackerWings, defenderWings, attacker, defender, config, rng) {
+      const totalAttackers = sum(attackerWings);
+      const totalDefenders = sum(defenderWings);
+      const detection = effectiveDetection(totalAttackers, attacker, config);
+      if (totalAttackers <= 0 || totalDefenders <= 0 || attacker.efficiency <= 0 || detection <= 0) {
+        return { participants: 0, expected: 0, losses: defenderWings.map(() => 0) };
+      }
+
+      const activeAttackers = totalAttackers * attacker.efficiency;
+      const detectedDefenders = totalDefenders * detection;
+      const multiplaneCap = Math.max(0, config.defines.COMBAT_MULTIPLANE_CAP);
+      const participants = Math.min(activeAttackers, detectedDefenders * multiplaneCap);
+      let expected = 0;
+
+      const losses = defenderWings.map((targetSize) => {
+        if (targetSize <= 0) return 0;
+        const allocatedAttackers = participants * (targetSize / totalDefenders);
+        const components = damageComponents(
+          allocatedAttackers,
+          attacker,
+          defender,
+          config.defines,
+          config.combatType
+        );
+        const cappedExpected = Math.min(targetSize, components.expected);
+        expected += cappedExpected;
+        return Number.isFinite(components.expected)
+          ? Math.min(targetSize, stochasticRound(components.expected, rng))
+          : targetSize;
+      });
+
+      return { participants, expected, losses };
+    }
+
+    function effectiveDetection(totalFriendlyAircraft, side, config) {
+      if (config.detectionMode !== 'defines') return clamp(side.detection, 0, 1);
+      const defines = config.defines;
+      const effectiveCount = defines.DETECT_CHANCE_FROM_AIRCRAFTS_EFFECTIVE_COUNT;
+      const aircraftShare = effectiveCount > 0
+        ? Math.min(totalFriendlyAircraft / effectiveCount, 1)
+        : (totalFriendlyAircraft > 0 ? 1 : 0);
+      const nightModifier = config.isNight ? defines.DETECT_CHANCE_FROM_NIGHT : 0;
+      return clamp(
+        side.occupation * defines.DETECT_CHANCE_FROM_OCCUPATION
+        + side.radar * defines.DETECT_CHANCE_FROM_RADARS
+        + aircraftShare * defines.DETECT_CHANCE_FROM_AIRCRAFTS
+        + nightModifier,
+        0,
+        1
+      );
+    }
+
+    function applyLosses(wings, losses) {
+      for (let index = 0; index < wings.length; index += 1) {
+        wings[index] = Math.max(0, wings[index] - losses[index]);
+      }
+    }
+
+    function simulateCampaign(config, rng = Math.random, keepLog = false) {
+      const aWings = createWings(config.a.wingCount);
+      const bWings = createWings(config.b.wingCount);
+      const carryLosses = config.carryLosses !== false;
+      const initialA = sum(aWings);
+      const initialB = sum(bWings);
+      const log = [];
+      let cumulativeKillsA = 0;
+      let cumulativeKillsB = 0;
+      let extinctRoundA = null;
+      let extinctRoundB = null;
+      let battlesFought = 0;
+
+      for (let round = 1; round <= config.battles; round += 1) {
+        const startA = sum(aWings);
+        const startB = sum(bWings);
+        if (startA <= 0 || startB <= 0) break;
+
+        const attackA = resolveAttack(aWings, bWings, config.a, config.b, config, rng);
+        const attackB = resolveAttack(bWings, aWings, config.b, config.a, config, rng);
+        const killsA = sum(attackA.losses);
+        const killsB = sum(attackB.losses);
+        cumulativeKillsA += killsA;
+        cumulativeKillsB += killsB;
+
+        applyLosses(bWings, attackA.losses);
+        applyLosses(aWings, attackB.losses);
+        const remainingA = sum(aWings);
+        const remainingB = sum(bWings);
+        battlesFought = round;
+
+        if (remainingA === 0 && extinctRoundA === null) extinctRoundA = round;
+        if (remainingB === 0 && extinctRoundB === null) extinctRoundB = round;
+
+        if (keepLog) {
+          log.push({
+            round, startA, startB,
+            participantsA: attackA.participants,
+            participantsB: attackB.participants,
+            expectedA: attackA.expected,
+            expectedB: attackB.expected,
+            killsA, killsB, remainingA, remainingB
+          });
+        }
+
+        if (!carryLosses && round < config.battles) {
+          aWings.fill(WING_SIZE);
+          bWings.fill(WING_SIZE);
+        }
+      }
+
+      const survivorsA = sum(aWings);
+      const survivorsB = sum(bWings);
+      return {
+        initialA, initialB,
+        killsA: cumulativeKillsA,
+        killsB: cumulativeKillsB,
+        survivorsA, survivorsB,
+        battlesFought,
+        extinctRoundA, extinctRoundB,
+        log
+      };
+    }
+
+    function percentile(sorted, fraction) {
+      if (!sorted.length) return 0;
+      const position = (sorted.length - 1) * fraction;
+      const lower = Math.floor(position);
+      const upper = Math.ceil(position);
+      if (lower === upper) return sorted[lower];
+      return sorted[lower] + (sorted[upper] - sorted[lower]) * (position - lower);
+    }
+
+    function summarize(results, config = null) {
+      const series = (key) => results.map((result) => result[key]);
+      const sorted = (key) => series(key).sort((a, b) => a - b);
+      const killsA = sorted('killsA');
+      const killsB = sorted('killsB');
+      const survivorsA = sorted('survivorsA');
+      const survivorsB = sorted('survivorsB');
+      let winsA = 0;
+      let winsB = 0;
+      let draws = 0;
+
+      for (const result of results) {
+        const compareA = config && config.carryLosses === false ? result.killsA : result.survivorsA;
+        const compareB = config && config.carryLosses === false ? result.killsB : result.survivorsB;
+        if (compareA > compareB) winsA += 1;
+        else if (compareB > compareA) winsB += 1;
+        else draws += 1;
+      }
+
+      const extinctionA = results.filter((r) => r.extinctRoundA !== null).map((r) => r.extinctRoundA);
+      const extinctionB = results.filter((r) => r.extinctRoundB !== null).map((r) => r.extinctRoundB);
+
+      return {
+        killsA, killsB, survivorsA, survivorsB,
+        meanKillsA: average(killsA),
+        meanKillsB: average(killsB),
+        meanSurvivorsA: average(survivorsA),
+        meanSurvivorsB: average(survivorsB),
+        winsA: winsA / results.length,
+        winsB: winsB / results.length,
+        draws: draws / results.length,
+        meanExtinctionA: extinctionA.length ? average(extinctionA) : null,
+        meanExtinctionB: extinctionB.length ? average(extinctionB) : null
+      };
+    }
+
+    function ratioText(numerator, denominator) {
+      if (denominator === 0) return numerator === 0 ? '—' : '∞';
+      return `${numberFormat.format(numerator / denominator)} : 1`;
+    }
+
+    function metric(label, value, sub = '', valueClass = '') {
+      return `<div class="metric"><div class="metric-label">${label}</div><div class="metric-value ${valueClass}">${value}</div>${sub ? `<div class="metric-sub">${sub}</div>` : ''}</div>`;
+    }
+
+    function renderSample(result, config) {
+      const fought = Math.max(1, result.battlesFought);
+      byId('sample-summary').innerHTML = [
+        metric('Aの総撃墜', `${integerFormat.format(result.killsA)}機`, 'A → B', 'ink-a'),
+        metric('Bの総撃墜', `${integerFormat.format(result.killsB)}機`, 'B → A', 'ink-b'),
+        metric('1戦平均撃墜', `<div class="split-value"><b class="ink-a">${numberFormat.format(result.killsA / fought)}</b><span>/</span><b class="ink-b">${numberFormat.format(result.killsB / fought)}</b></div>`, 'A / B（実施戦あたり）'),
+        metric(config.carryLosses ? '最終残存機' : '最終戦の残存機', `<div class="split-value"><b class="ink-a">${integerFormat.format(result.survivorsA)}</b><span>/</span><b class="ink-b">${integerFormat.format(result.survivorsB)}</b></div>`, 'A / B'),
+        metric('Aの撃墜比', ratioText(result.killsA, result.killsB), `${integerFormat.format(result.battlesFought)}戦を実施`)
+      ].join('');
+    }
+
+    function pct(value) {
+      return `${numberFormat.format(value * 100)}%`;
+    }
+
+    function renderStats(stats, config) {
+      byId('stats-subtitle').textContent = config.carryLosses
+        ? `${integerFormat.format(config.battles)}回の連続戦闘を、初期機数から${integerFormat.format(config.trials)}回再現した集計です。`
+        : `初期機数から始める独立戦闘${integerFormat.format(config.battles)}回を1セットとして、${integerFormat.format(config.trials)}回再現した集計です。`;
+      byId('stats-summary').innerHTML = [
+        metric('Aの平均総撃墜', `${numberFormat.format(stats.meanKillsA)}機`, `中央値 ${numberFormat.format(percentile(stats.killsA, .5))}`, 'ink-a'),
+        metric('Bの平均総撃墜', `${numberFormat.format(stats.meanKillsB)}機`, `中央値 ${numberFormat.format(percentile(stats.killsB, .5))}`, 'ink-b'),
+        metric('平均最終残存', `<div class="split-value"><b class="ink-a">${numberFormat.format(stats.meanSurvivorsA)}</b><span>/</span><b class="ink-b">${numberFormat.format(stats.meanSurvivorsB)}</b></div>`, 'A / B'),
+        metric(config.carryLosses ? '残存機優勢率' : '総撃墜優勢率', `<div class="split-value"><b class="ink-a">${pct(stats.winsA)}</b><span>/</span><b class="ink-b">${pct(stats.winsB)}</b></div>`, `A / B・同数 ${pct(stats.draws)}`),
+        metric('平均撃墜比 A', ratioText(stats.meanKillsA, stats.meanKillsB), `全滅平均 A: ${stats.meanExtinctionA === null ? 'なし' : numberFormat.format(stats.meanExtinctionA) + '戦'} / B: ${stats.meanExtinctionB === null ? 'なし' : numberFormat.format(stats.meanExtinctionB) + '戦'}`)
+      ].join('');
+
+      const row = (label, values) => `<tr><td>${label}</td><td>${numberFormat.format(values[0])}</td><td>${numberFormat.format(percentile(values, .1))}</td><td>${numberFormat.format(percentile(values, .5))}</td><td>${numberFormat.format(percentile(values, .9))}</td><td>${numberFormat.format(values[values.length - 1])}</td></tr>`;
+      byId('stats-table').innerHTML = [
+        row('Aの総撃墜', stats.killsA),
+        row('Bの総撃墜', stats.killsB),
+        row('Aの残存機', stats.survivorsA),
+        row('Bの残存機', stats.survivorsB)
+      ].join('');
+
+      renderHistogram('hist-a', stats.killsA);
+      renderHistogram('hist-b', stats.killsB);
+    }
+
+    function renderHistogram(id, sortedValues) {
+      const min = sortedValues[0];
+      const max = sortedValues[sortedValues.length - 1];
+      const binCount = 12;
+      const counts = Array(binCount).fill(0);
+      const span = Math.max(1, max - min + 1);
+
+      for (const value of sortedValues) {
+        const index = Math.min(binCount - 1, Math.floor((value - min) / span * binCount));
+        counts[index] += 1;
+      }
+
+      const peak = Math.max(...counts, 1);
+      byId(id).innerHTML = counts.map((count, index) => {
+        const low = min + span * index / binCount;
+        const high = min + span * (index + 1) / binCount;
+        const height = Math.max(2, count / peak * 100);
+        return `<div class="hist-bar" style="height:${height}%" title="${numberFormat.format(low)}〜${numberFormat.format(high)}機: ${integerFormat.format(count)}回"></div>`;
+      }).join('');
+      byId(`${id}-min`).textContent = `${integerFormat.format(min)}機`;
+      byId(`${id}-max`).textContent = `${integerFormat.format(max)}機`;
+    }
+
+    function renderLog(log, configuredBattles, carryLosses) {
+      const renderLimit = 1000;
+      const visible = log.slice(0, renderLimit);
+      byId('battle-log').innerHTML = visible.length ? visible.map((item) => `
+        <tr>
+          <td>第${integerFormat.format(item.round)}戦</td>
+          <td><span class="ink-a">${integerFormat.format(item.startA)}</span> / <span class="ink-b">${integerFormat.format(item.startB)}</span></td>
+          <td><span class="ink-a">${numberFormat.format(item.participantsA)}</span> / <span class="ink-b">${numberFormat.format(item.participantsB)}</span></td>
+          <td><span class="ink-a">${numberFormat.format(item.expectedA)}</span> / <span class="ink-b">${numberFormat.format(item.expectedB)}</span></td>
+          <td><span class="ink-a">${integerFormat.format(item.killsA)}</span> / <span class="ink-b">${integerFormat.format(item.killsB)}</span></td>
+          <td><span class="ink-a">${integerFormat.format(item.remainingA)}</span> / <span class="ink-b">${integerFormat.format(item.remainingB)}</span></td>
+        </tr>
+      `).join('') : '<tr><td colspan="6" class="empty-note">実施された戦闘はありません。</td></tr>';
+
+      const parts = [`代表試行の${integerFormat.format(log.length)}戦分を表示しています。`];
+      if (!carryLosses) parts.push('各戦闘は初期機数から開始します。');
+      if (log.length < configuredBattles) parts.push('一方が全滅したため、予定より早く終了しました。');
+      if (log.length > renderLimit) parts.push(`画面には先頭${integerFormat.format(renderLimit)}戦のみ表示しています。`);
+      byId('log-note').textContent = parts.join(' ');
+    }
+
+    function setStatus(message, percent = null) {
+      byId('status-text').textContent = message;
+      byId('status-percent').textContent = percent === null ? '' : `${Math.round(percent)}%`;
+      if (percent === null) {
+        byId('progress').classList.remove('active');
+        byId('progress-bar').style.width = '0%';
+      } else {
+        byId('progress').classList.add('active');
+        byId('progress-bar').style.width = `${clamp(percent, 0, 100)}%`;
+      }
+    }
+
+    async function runAll(config) {
+      const estimatedPackets = config.trials * config.battles * (config.a.wingCount + config.b.wingCount);
+      if (estimatedPackets > 50000000) {
+        throw new Error('この設定は計算量が大きすぎます。戦闘回数・試行回数・航空隊数のいずれかを下げてください。');
+      }
+
+      const results = [];
+      let lastYield = performance.now();
+      for (let trial = 0; trial < config.trials; trial += 1) {
+        results.push(simulateCampaign(config, Math.random, trial === 0));
+        if (performance.now() - lastYield > 28) {
+          const progress = (trial + 1) / config.trials * 100;
+          setStatus(`${integerFormat.format(config.trials)}試行を計算中…`, progress);
+          await new Promise((resolve) => requestAnimationFrame(resolve));
+          lastYield = performance.now();
+        }
+      }
+      return results;
+    }
+
+    async function handleSubmit(event) {
+      event.preventDefault();
+      const runButton = byId('run-button');
+      try {
+        const config = readConfig();
+        runButton.disabled = true;
+        runButton.textContent = '計算中…';
+        setStatus('シミュレーションを準備しています…', 0);
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+
+        const results = await runAll(config);
+        const representative = results[0];
+        const stats = summarize(results, config);
+        renderSample(representative, config);
+        renderStats(stats, config);
+        renderLog(representative.log, config.battles, config.carryLosses);
+
+        byId('results-caption').textContent = `${integerFormat.format(config.a.wingCount * WING_SIZE)}機 vs ${integerFormat.format(config.b.wingCount * WING_SIZE)}機・${config.combatType === 'carrier' ? '空母戦' : '通常空戦'}・損失${config.carryLosses ? '持越し' : 'リセット'}・探知${config.detectionMode === 'defines' ? 'Defines推定' : '手動'}`;
+        byId('results').hidden = false;
+        setStatus(`完了：${integerFormat.format(config.trials)}試行を集計しました。`);
+        byId('results').scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+      } catch (error) {
+        setStatus(error instanceof Error ? error.message : '入力内容を確認してください。');
+      } finally {
+        runButton.disabled = false;
+        runButton.textContent = 'シミュレーション開始';
+      }
+    }
+
+    buildDefineInputs();
+    updatePlaneTotals();
+    byId('sim-form').addEventListener('submit', handleSubmit);
+    byId('reset-defines').addEventListener('click', resetDefines);
+    byId('detection-mode').addEventListener('change', updateDetectionMode);
+    byId('a-wings').addEventListener('input', updatePlaneTotals);
+    byId('b-wings').addEventListener('input', updatePlaneTotals);
+
+    function updateDetectionMode() {
+      const usesDefines = byId('detection-mode').value === 'defines';
+      byId('detection-environment').hidden = !usesDefines;
+      byId('is-night').disabled = !usesDefines;
+      byId('a-detection').disabled = usesDefines;
+      byId('b-detection').disabled = usesDefines;
+    }
+
+    updateDetectionMode();
+
+    window.__HOI4_AIR_SIM__ = Object.freeze({
+      DEFAULT_DEFINES,
+      stochasticRound,
+      damageComponents,
+      effectiveDetection,
+      simulateCampaign,
+      summarize
+    });
+  </script>
+</body>
+</html>
