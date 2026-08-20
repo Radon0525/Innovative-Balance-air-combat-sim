@@ -108,6 +108,33 @@
       gap: 7px;
     }
 
+    .creator-note-button {
+      min-height: 40px;
+      padding: 0 14px;
+      border: 1px solid #d7b66f;
+      border-radius: 11px;
+      background: #fff8e8;
+      color: #76501c;
+      font-size: .8rem;
+      font-weight: 850;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(118, 80, 28, .08);
+      transition: color .16s ease, background .16s ease, border-color .16s ease, transform .16s ease, box-shadow .16s ease;
+    }
+
+    .creator-note-button:hover {
+      border-color: #b98a35;
+      background: #ffefc7;
+      color: #5f3d10;
+      box-shadow: 0 6px 15px rgba(118, 80, 28, .14);
+      transform: translateY(-1px);
+    }
+
+    .creator-note-button:focus-visible {
+      outline: 3px solid rgba(185, 138, 53, .25);
+      outline-offset: 2px;
+    }
+
     .guide-feature {
       position: relative;
       display: grid;
@@ -463,6 +490,111 @@
       background: #f4f3ed;
       color: #3f4945;
       cursor: default;
+    }
+
+    .creator-note-dialog {
+      width: min(720px, calc(100% - 24px));
+      max-height: calc(100dvh - 30px);
+      padding: 0;
+      border: 1px solid #b7c2c8;
+      border-radius: 16px;
+      background: #fff;
+      color: var(--ink);
+      box-shadow: 0 24px 80px rgba(24, 38, 44, .25);
+      overflow: hidden;
+    }
+
+    .creator-note-dialog[open] {
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr) auto;
+    }
+
+    .creator-note-dialog::backdrop {
+      background: rgba(30, 43, 49, .5);
+      backdrop-filter: blur(3px);
+    }
+
+    .creator-note-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 17px 20px;
+      border-bottom: 1px solid var(--line);
+      background: #f8fafb;
+    }
+
+    .creator-note-head h2 {
+      margin: 0;
+      color: var(--navy);
+      font-family: "BIZ UDPGothic", "Yu Gothic UI", "Hiragino Sans", Meiryo, system-ui, sans-serif;
+      font-size: 1.3rem;
+    }
+
+    .creator-note-head p {
+      margin: 3px 0 0;
+      color: var(--muted);
+      font-size: .72rem;
+    }
+
+    .creator-note-body {
+      padding: 22px;
+      overflow: auto;
+    }
+
+    .creator-note-body p {
+      margin: 0;
+      color: #3f4945;
+      font-size: .88rem;
+      line-height: 1.8;
+    }
+
+    .creator-note-body p + p { margin-top: 17px; }
+
+    .creator-note-warning {
+      padding: 14px 16px;
+      border-left: 4px solid #b98a35;
+      background: #fff8e8;
+    }
+
+    .creator-note-example {
+      display: grid;
+      gap: 5px;
+      margin: 17px 0 0;
+      padding: 15px 17px;
+      border: 1px solid #cad9e3;
+      border-radius: 12px;
+      background: #f3f8fb;
+    }
+
+    .creator-note-example span {
+      color: var(--muted);
+      font-size: .72rem;
+      font-weight: 750;
+    }
+
+    .creator-note-example strong {
+      color: var(--navy);
+      font-size: 1.15rem;
+    }
+
+    .creator-note-footer {
+      display: flex;
+      justify-content: flex-end;
+      padding: 13px 20px;
+      border-top: 1px solid var(--line);
+      background: #f8fafb;
+    }
+
+    .creator-note-footer button {
+      min-width: 96px;
+      min-height: 38px;
+      border: 0;
+      border-radius: 9px;
+      background: var(--navy);
+      color: #fff;
+      font-weight: 800;
+      cursor: pointer;
     }
 
     .designer-dialog {
@@ -1037,7 +1169,10 @@
       .shell { width: min(100% - 20px, 1180px); padding-top: 24px; }
       .hero { align-items: flex-start; flex-direction: column; gap: 16px; }
       .hero-actions { width: 100%; justify-items: start; }
+      .creator-note-button { width: 100%; }
       .wing-rule { min-width: 0; width: 100%; text-align: left; }
+      .creator-note-dialog { width: calc(100% - 16px); max-height: calc(100dvh - 16px); }
+      .creator-note-body { padding: 18px; }
       .guide-feature { grid-template-columns: 1fr; gap: 20px; padding: 23px 20px; }
       .guide-link { width: 100%; min-width: 0; }
       .scenario-row, .teams, .method-grid { grid-template-columns: 1fr; }
@@ -1083,6 +1218,7 @@
         <p class="lead">戦闘機どうしの連続空戦を再現します。撃墜損失は次戦へ持ち越し、同じ条件を繰り返して結果のばらつきも確認できます。</p>
       </div>
       <div class="hero-actions">
+        <button class="creator-note-button" id="creator-note-open" type="button" aria-haspopup="dialog" aria-controls="creator-note-dialog">らどんのひとこと</button>
         <div class="wing-rule"><span>航空隊の固定規模</span><strong>1航空隊 = 100機</strong></div>
       </div>
     </header>
@@ -1281,6 +1417,30 @@
         </div>
       </details>
     </form>
+
+    <dialog class="creator-note-dialog" id="creator-note-dialog" aria-labelledby="creator-note-title">
+      <div class="creator-note-head">
+        <div>
+          <h2 id="creator-note-title">らどんのひとこと</h2>
+          <p>製作者・らどんより</p>
+        </div>
+        <button class="dialog-close" id="creator-note-x" type="button" aria-label="らどんのひとことを閉じる">×</button>
+      </div>
+      <div class="creator-note-body">
+        <p class="creator-note-warning">エース、天候、昼夜、練度、ドクトリン、空軍司令部精神、軍長官、軍司令官の機能は再現していません。Wikiをベースに作っているので、必ずしもこのシミュレーターがゲームと一致するとは保証しかねます。</p>
+        <p><code>HOURS_DELAY_AFTER_EACH_COMBAT = 6</code> なので、イノバ環境下における1日の空戦回数は2回です。戦闘回数と試行回数の違いに注意してください。</p>
+        <div class="creator-note-example">
+          <span>3か月間戦闘させる場合の例</span>
+          <strong>31日 × 3か月 × 2回 = 戦闘回数186回</strong>
+        </div>
+        <p>試行回数は乱数の偏りを少なくするものですから、1000くらいがちょうどいいでしょう。</p>
+        <p>「損失を持ち越す」で設定した場合、このシミュレーターには航空機生産がないので、有限回数でいずれどちらかの航空機はゼロになります。</p>
+        <p>空母戦に関しては係数を登録してあるだけで、艦載機の設計はまだ制作しておりません。カミングスーンです。</p>
+      </div>
+      <div class="creator-note-footer">
+        <button id="creator-note-close" type="button">閉じる</button>
+      </div>
+    </dialog>
 
     <dialog class="designer-dialog" id="designer-dialog" aria-labelledby="designer-title">
       <div class="designer-head">
@@ -2678,6 +2838,14 @@
       byId('a-detection').disabled = usesDefines;
       byId('b-detection').disabled = usesDefines;
     }
+
+    const creatorNoteDialog = byId('creator-note-dialog');
+    byId('creator-note-open').addEventListener('click', () => creatorNoteDialog.showModal());
+    byId('creator-note-x').addEventListener('click', () => creatorNoteDialog.close());
+    byId('creator-note-close').addEventListener('click', () => creatorNoteDialog.close());
+    creatorNoteDialog.addEventListener('click', (event) => {
+      if (event.target === creatorNoteDialog) creatorNoteDialog.close();
+    });
 
     byId('guide-feature-close').addEventListener('click', () => {
       document.querySelector('.guide-feature').hidden = true;
